@@ -5,7 +5,6 @@ import { ArrowUpIcon } from "./icons"
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
-import { title } from "process";
 
 interface ChatInputProps {
     question: string;
