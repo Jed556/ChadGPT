@@ -1,7 +1,7 @@
 import { Textarea } from "../ui/textarea";
 import { cx } from 'classix';
 import { Button } from "../ui/button";
-import { ArrowUpIcon } from "./icons"
+import { ArrowUpIcon, PenIcon } from "./icons"; // Import the pencil icon
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ interface ChatInputProps {
     question: string;
     setQuestion: (question: string) => void;
     onSubmit: (text?: string) => void;
+    onGenerateImage: (text?: string) => void;
     isLoading: boolean;
 }
 
@@ -36,7 +37,7 @@ const suggestedActions = [
     }
 ];
 
-export const ChatInput = ({ question, setQuestion, onSubmit, isLoading }: ChatInputProps) => {
+export const ChatInput = ({ question, setQuestion, onSubmit, onGenerateImage, isLoading }: ChatInputProps) => {
     const [showSuggestions, setShowSuggestions] = useState(true);
 
     return (
@@ -98,15 +99,33 @@ export const ChatInput = ({ question, setQuestion, onSubmit, isLoading }: ChatIn
                 }}
                 rows={3}
                 autoFocus
-            />
-
-            <Button
-                className="rounded-full p-1.5 h-fit absolute bottom-2 right-2 m-0.5 border dark:border-zinc-600"
-                onClick={() => onSubmit(question)}
-                disabled={question.length === 0}
             >
-                <ArrowUpIcon size={14} />
-            </Button>
+                <Button
+                    className={cx(
+                        "rounded-full p-1.5 h-fit border dark:border-zinc-600 bg-transparent",
+                        question.length === 0
+                            ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                            : "opacity-100 hover:ring-2 hover:ring-ring text-muted-foreground hover:text-ring hover:bg-transparent"
+                    )}
+                    onClick={() => onSubmit(question)}
+                    disabled={question.length === 0}
+                >
+                    <ArrowUpIcon size={14} />
+                </Button>
+
+                <Button
+                    className={cx(
+                        "rounded-full p-1.5 h-fit border dark:border-zinc-600 bg-transparent",
+                        question.length === 0
+                            ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                            : "opacity-100 hover:ring-2 hover:ring-ring text-muted-foreground hover:text-ring hover:bg-transparent"
+                    )}
+                    onClick={() => onGenerateImage(question)}
+                    disabled={question.length === 0}
+                >
+                    <PenIcon size={14} />
+                </Button>
+            </Textarea>
         </div>
     );
 }

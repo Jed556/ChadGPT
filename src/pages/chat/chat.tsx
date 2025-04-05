@@ -75,6 +75,49 @@ export function Chat() {
     }
   }
 
+  async function handleGenerateImage(text?: string) {
+    if (isLoading) return;
+
+    const messageText = text || question;
+    setIsLoading(true);
+    cleanupMessageHandler();
+
+    const traceId = uuidv4();
+    setMessages(prev => [...prev, { content: messageText, role: "user", id: traceId }]);
+    setQuestion("");
+    try {
+      const response = await client.images.generate({
+        prompt: messageText,
+        n: 1,
+        size: '512x512',
+      });
+
+      const imageUrl = response.data[0].url;
+
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        const newMessage = { content: imageUrl, role: "assistant", id: traceId } as message;
+        return lastMessage?.role === "assistant"
+          ? [...prev.slice(0, -1), newMessage]
+          : [...prev, newMessage];
+      });
+    }
+    catch (error) {
+      console.error("OpenAI API error:", error);
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        const errorMessage = error instanceof Error && error.message ? error.message : "An unknown error occurred.";
+        const newMessage = { content: "Error: " + errorMessage, role: "error", id: traceId } as message;
+        return lastMessage?.role === "assistant"
+          ? [...prev.slice(0, -1), newMessage]
+          : [...prev, newMessage];
+      });
+    }
+    finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <div className="flex flex-col min-w-0 h-dvh bg-background">
       <Header />
@@ -91,6 +134,7 @@ export function Chat() {
           question={question}
           setQuestion={setQuestion}
           onSubmit={handleSubmit}
+          onGenerateImage={handleGenerateImage}
           isLoading={isLoading}
         />
       </div>
