@@ -1,13 +1,15 @@
 import { ChatInput } from "@/components/custom/chatinput";
 import { PreviewMessage, ThinkingMessage } from "../../components/custom/message";
 import { useScrollToBottom } from '@/components/custom/use-scroll-to-bottom';
-import { useState, useRef } from "react";
-import { message } from "../../interfaces/interfaces"
+import { useState, useRef, useEffect } from "react";
+import { message } from "../../interfaces/interfaces";
 import { Overview } from "@/components/custom/overview";
 import { Header } from "@/components/custom/header";
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
 import { Sidebar } from "@/components/custom/sidebar";
+import { db } from "@/firebase/firebaseConfig";
+import { collection, addDoc, onSnapshot, deleteDoc, doc } from "firebase/firestore";
 
 const client = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -20,6 +22,42 @@ export function Chat() {
   const [question, setQuestion] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [chats, setChats] = useState<{ id: string; name: string }[]>([]);
+  const chatCounterRef = useRef(0); // Centralized counter for chat names
+
+  useEffect(() => {
+    // Listen for real-time updates from Firebase
+    const unsubscribe = onSnapshot(collection(db, "chats"), (snapshot) => {
+      const chatsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as { id: string; name: string }));
+      setChats(chatsData);
+
+      // Update the counter to ensure it reflects the number of chats in the database
+      chatCounterRef.current = chatsData.length;
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleCreateNewChat = async () => {
+    try {
+      const id = Date.now().toString(); // Generate a unique ID
+      const name = `Chat ${chatCounterRef.current + 1}`; // Include the ID in the chat name
+
+      // Add a new chat to Firebase
+      await addDoc(collection(db, "chats"), { id, name });
+    } catch (error) {
+      console.error("Error creating new chat:", error);
+    }
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    try {
+      // Delete the chat from Firebase
+      await deleteDoc(doc(db, "chats", chatId));
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+    }
+  };
 
   const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
 
@@ -125,14 +163,17 @@ export function Chat() {
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
-        onDeleteChat={(chatId) => {
-          setMessages((prev) => prev.filter((msg) => msg.id !== chatId));
-        }}
+        onDeleteChat={handleDeleteChat}
         className={`transition-transform transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           } fixed inset-y-0 left-0 w-64 bg-background border-r z-10 md:w-64`}
+        chats={chats} // Pass chats from Firebase
+        onCreateNewChat={handleCreateNewChat} // Pass centralized handler to Sidebar
       />
       <div className={`flex flex-col flex-1 transition-all ${isSidebarOpen ? "md:ml-64" : "md:ml-0"}`}>
-        <Header onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <Header
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onCreateNewChat={handleCreateNewChat} // Pass centralized handler to Header
+        />
         <div className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4" ref={messagesContainerRef}>
           {messages.length == 0 && <Overview />}
           {messages.map((message, index) => (
