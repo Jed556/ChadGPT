@@ -1,7 +1,7 @@
 import { Textarea } from "../ui/textarea";
 import { cx } from 'classix';
 import { Button } from "../ui/button";
-import { ArrowUpIcon, PenIcon } from "./icons"; // Import the pencil icon
+import { ArrowUpIcon, PenIcon, PaperclipIcon } from "./icons"; // Import the pencil icon
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
@@ -107,10 +107,22 @@ export const ChatInput = ({ question, setQuestion, onSubmit, onGenerateImage, is
                             ? "opacity-50 cursor-not-allowed text-muted-foreground"
                             : "opacity-100 hover:ring-2 hover:ring-ring text-muted-foreground hover:text-ring hover:bg-transparent"
                     )}
-                    onClick={() => onSubmit(question)}
+                    onClick={() => onGenerateImage(question)}
                     disabled={question.length === 0}
                 >
-                    <ArrowUpIcon size={14} />
+                    <PenIcon size={14} />
+                </Button>
+
+                <Button
+                    className={cx(
+                        "rounded-full p-1.5 h-fit border dark:border-zinc-600 bg-transparent",
+                        "opacity-100 hover:ring-2 hover:ring-ring text-muted-foreground hover:text-ring hover:bg-transparent"
+                    )}
+                    onClick={() => {
+                        toast.info("Attach functionality not implemented yet!");
+                    }}
+                >
+                    <PaperclipIcon size={14} />
                 </Button>
 
                 <Button
@@ -120,10 +132,10 @@ export const ChatInput = ({ question, setQuestion, onSubmit, onGenerateImage, is
                             ? "opacity-50 cursor-not-allowed text-muted-foreground"
                             : "opacity-100 hover:ring-2 hover:ring-ring text-muted-foreground hover:text-ring hover:bg-transparent"
                     )}
-                    onClick={() => onGenerateImage(question)}
+                    onClick={() => onSubmit(question)}
                     disabled={question.length === 0}
                 >
-                    <PenIcon size={14} />
+                    <ArrowUpIcon size={14} />
                 </Button>
             </Textarea>
         </div>

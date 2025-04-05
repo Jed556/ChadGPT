@@ -18,7 +18,7 @@ const Textarea = React.forwardRef<
         ref={ref}
         {...props}
       />
-      <div className="flex gap-2 mt-2">{children}</div> {/* Render children below the text area */}
+      <div className="flex gap-2 mt-2">{children}</div>
     </div>
   );
 });
