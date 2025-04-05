@@ -8,9 +8,10 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onDeleteChat?: (chatId: string) => void;
+  className?: string;
 }
 
-export function Sidebar({ isOpen, onClose, onDeleteChat }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, onDeleteChat, className }: SidebarProps) {
   const [chats, setChats] = useState<{ id: string; name: string; active: boolean }[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
 
@@ -45,14 +46,19 @@ export function Sidebar({ isOpen, onClose, onDeleteChat }: SidebarProps) {
   return (
     <div
       className={cn(
-        "fixed inset-y-0 left-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out z-50",
+        `${className} fixed inset-y-0 left-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out z-50`,
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
       <div className="flex flex-col h-full p-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Chats</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="md:hidden" // Hide the button on large screens
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>

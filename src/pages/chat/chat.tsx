@@ -128,8 +128,10 @@ export function Chat() {
         onDeleteChat={(chatId) => {
           setMessages((prev) => prev.filter((msg) => msg.id !== chatId));
         }}
+        className={`transition-transform transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } fixed inset-y-0 left-0 w-64 bg-background border-r z-10 md:w-64`}
       />
-      <div className="flex flex-col flex-1">
+      <div className={`flex flex-col flex-1 transition-all ${isSidebarOpen ? "md:ml-64" : "md:ml-0"}`}>
         <Header onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
         <div className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4" ref={messagesContainerRef}>
           {messages.length == 0 && <Overview />}
