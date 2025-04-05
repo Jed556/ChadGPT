@@ -72,7 +72,7 @@ export function Sidebar({ isOpen, onClose, onDeleteChat, className }: SidebarPro
           New Chat
         </Button>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 pr-5">
           <div className="space-y-2">
             {chats.map((chat) => (
               <div
