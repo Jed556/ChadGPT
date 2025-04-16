@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
 import { Sidebar } from "@/components/custom/sidebar";
 import { fireStore } from "@/firebase/firebaseConfig";
-import { collection, addDoc, onSnapshot, deleteDoc, doc, query, where, setDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, deleteDoc, doc, query, where, setDoc, getDocs, orderBy } from "firebase/firestore";
 
 const client = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -32,11 +32,19 @@ export function Chat() {
     return () => unsubscribe(); // Cleanup the listener on unmount
   }, [currentAccountId]); // Remove dependency on activeChatId to avoid re-triggering
 
+  useEffect(() => {
+    if (activeChatId) {
+      const unsubscribe = fetchMessages(activeChatId); // Fetch messages for the active chat
+      return () => unsubscribe(); // Cleanup the listener on unmount
+    }
+  }, [activeChatId]); // Fetch messages when activeChatId changes
+
   // Fetch chats from Firestore
   const fetchChats = () => {
     const chatsQuery = query(
       collection(fireStore, "chats"),
-      where("accountId", "==", currentAccountId)
+      //where("accountId", "==", currentAccountId),
+      orderBy("createdAt", "desc") // Sort chats by createdAt in descending order
     );
 
     const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
@@ -71,11 +79,13 @@ export function Chat() {
   const createNewChat = async (): Promise<string> => {
     const name = `Chat ${chatCounterRef.current + 1}`;
     const createdAt = new Date().toISOString();
+    const accountId = currentAccountId;
 
-    const newChatRef = await addDoc(collection(fireStore, "chats"), { name, accountId: currentAccountId, createdAt });
-    console.log("Chat created successfully:", { id: newChatRef.id, name, accountId: currentAccountId, createdAt });
+    const newChatRef = await addDoc(collection(fireStore, "chats"), { name, accountId, createdAt });
+    console.log("Chat created successfully:", { id: newChatRef.id, name, accountId, createdAt });
 
     setActiveChatId(newChatRef.id);
+    //fetchMessages(newChatRef.id);
     return newChatRef.id;
   };
 
@@ -95,7 +105,7 @@ export function Chat() {
     // Reset active chat and messages if the deleted chat was active
     if (activeChatId === chatId) {
       setActiveChatId(null);
-      setMessages([]);
+      //setMessages([]);
     }
   };
 
@@ -130,7 +140,7 @@ export function Chat() {
     // ...else, fetch messages for the new selected chat
     if (!wasDeleted) {
       setActiveChatId(chatId);
-      fetchMessages(chatId);
+      //fetchMessages(chatId);
     }
   };
 
@@ -150,7 +160,7 @@ export function Chat() {
       createdAt: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, newMessage]);
+    //setMessages((prev) => [...prev, newMessage]);
     setQuestion("");
 
     let chatId = activeChatId;
@@ -158,11 +168,9 @@ export function Chat() {
     if (!chatId) {
       chatId = await createNewChat();
     }
-
+    await saveMessage(chatId, newMessage);
 
     try {
-      await saveMessage(chatId, newMessage);
-
       const response = await client.chat.completions.create({
         model: 'gpt-4o',
         messages: [
@@ -179,20 +187,20 @@ export function Chat() {
         createdAt: new Date().toISOString(),
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      //setMessages((prev) => [...prev, assistantMessage]);
       await saveMessage(chatId, assistantMessage);
     } catch (error) {
       console.error("Error handling message submission:", error);
 
       const errorMessage: message = {
-        id: traceId,
+        id: uuidv4(),
         content: "Error: " + (error instanceof Error ? error.message : "Unknown error"),
         role: "error",
         accountId: currentAccountId,
         createdAt: new Date().toISOString(),
       };
 
-      setMessages((prev) => [...prev, errorMessage]);
+      //setMessages((prev) => [...prev, errorMessage]);
       await saveMessage(chatId, errorMessage);
     } finally {
       setIsLoading(false);
@@ -215,7 +223,7 @@ export function Chat() {
       createdAt: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, newMessage]);
+    //setMessages((prev) => [...prev, newMessage]);
     setQuestion("");
 
     let chatId = activeChatId;
@@ -223,9 +231,9 @@ export function Chat() {
     if (!chatId) {
       chatId = await createNewChat();
     }
+    await saveMessage(chatId, newMessage);
 
     try {
-      await saveMessage(chatId, newMessage);
 
       const response = await client.images.generate({
         model: "dall-e-3",
@@ -241,20 +249,20 @@ export function Chat() {
         createdAt: new Date().toISOString(),
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      //setMessages((prev) => [...prev, assistantMessage]);
       await saveMessage(chatId, assistantMessage);
     } catch (error) {
       console.error("Error generating image:", error);
 
       const errorMessage: message = {
-        id: traceId,
+        id: uuidv4(),
         content: "Error: " + (error instanceof Error ? error.message : "Unknown error"),
         role: "error",
         accountId: currentAccountId,
         createdAt: new Date().toISOString(),
       };
 
-      setMessages((prev) => [...prev, errorMessage]);
+      //setMessages((prev) => [...prev, errorMessage]);
       await saveMessage(chatId, errorMessage);
     } finally {
       setIsLoading(false);
@@ -269,6 +277,7 @@ export function Chat() {
         onDeleteChat={deleteChat}
         onCreateNewChat={async () => { await createNewChat(); }}
         chats={chats}
+        activeChatId={activeChatId}
         onSelectChat={handleSelectChat}
         className={`transition-transform transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           } fixed inset-y-0 left-0 w-64 bg-background border-r z-10 md:w-64`}
@@ -293,6 +302,7 @@ export function Chat() {
             onSubmit={handleSubmit}
             onGenerateImage={handleGenerateImage}
             isLoading={isLoading}
+            showSuggestions={messages.length === 0}
           />
         </div>
       </div>
