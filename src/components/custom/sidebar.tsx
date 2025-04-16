@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { MessageCircle, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,24 +12,10 @@ interface SidebarProps {
   chats: { id: string; name: string }[]; // Accept chats as a prop
   onCreateNewChat: (newChat: { id: string; name: string }) => void; // Accept onCreateNewChat as a prop
   onSelectChat: (chatId: string) => void; // Accept onSelectChat as a prop
+  activeChatId: string | null; // New prop to track the active chat
 }
 
-export function Sidebar({ isOpen, onClose, onDeleteChat, className, chats, onCreateNewChat, onSelectChat }: SidebarProps) {
-  const [activeChat, setActiveChat] = useState<string | null>(null);
-
-  const handleCreateNewChat = () => {
-    const newChat = {
-      id: Date.now().toString(),
-      name: `Chat ${chats.length + 1}`,
-    };
-    onCreateNewChat(newChat); // Pass the new chat to the parent handler
-  };
-
-  const selectChat = (chatId: string) => {
-    setActiveChat(chatId);
-    onSelectChat(chatId); // Call onSelectChat with the selected chat ID
-  };
-
+export function Sidebar({ isOpen, onClose, onDeleteChat, className, chats, onCreateNewChat, onSelectChat, activeChatId }: SidebarProps) {
   return (
     <div
       className={cn(
@@ -52,20 +37,17 @@ export function Sidebar({ isOpen, onClose, onDeleteChat, className, chats, onCre
         </div>
 
         <div className="mb-4">
-          <NewChatButton onCreate={handleCreateNewChat} showText={true} /> {/* Use local handler */}
+          <NewChatButton onCreate={onCreateNewChat} showText={true} />
         </div>
 
         <ScrollArea className="flex-1 pr-5">
           <div className="space-y-2">
             {chats.map((chat) => (
-              <div
-                key={chat.id}
-                className="group relative"
-              >
+              <div key={chat.id} className="group relative">
                 <Button
-                  variant={activeChat === chat.id ? "secondary" : "ghost"}
+                  variant={activeChatId === chat.id ? "secondary" : "ghost"} // Use activeChatId to determine style
                   className="w-full justify-start gap-2 pr-8"
-                  onClick={() => selectChat(chat.id)}
+                  onClick={() => onSelectChat(chat.id)}
                 >
                   <MessageCircle className="h-4 w-4" />
                   {chat.name}
