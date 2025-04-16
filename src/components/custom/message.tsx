@@ -54,12 +54,12 @@ export const ThinkingMessage = () => {
 
   return (
     <motion.div
-      className="w-full mx-auto max-w-3xl px-4 group/message "
+      className="w-full mx-auto max-w-3xl px-4 group/message"
       initial={{ y: 5, opacity: 0 }}
       animate={{ y: 0, opacity: 1, transition: { delay: 0.2 } }}
       data-role={role}
     >
-      <div
+      <motion.div
         className={cx(
           'flex gap-4 group-data-[role=user]/message:px-3 w-full group-data-[role=user]/message:w-fit group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl group-data-[role=user]/message:py-2 rounded-xl',
           'group-data-[role=user]/message:bg-muted'
@@ -68,7 +68,21 @@ export const ThinkingMessage = () => {
         <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
           <SparklesIcon size={14} />
         </div>
-      </div>
+        <motion.div
+          className="flex items-center text-white"
+          animate={{
+            opacity: [0.75, 0.5, 0.75], // Alternate between 75% and 50% opacity
+          }}
+          transition={{
+            duration: 1.5, // Duration of one cycle
+            repeat: Infinity, // Infinite loop
+          }}
+        >
+          <Markdown>
+            Thinking...
+          </Markdown>
+        </motion.div>
+      </motion.div>
     </motion.div>
   );
 };

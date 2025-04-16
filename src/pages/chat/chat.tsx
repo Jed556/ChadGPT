@@ -8,8 +8,8 @@ import { Header } from "@/components/custom/header";
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
 import { Sidebar } from "@/components/custom/sidebar";
-import { db } from "@/firebase/firebaseConfig";
-import { collection, addDoc, onSnapshot, deleteDoc, doc } from "firebase/firestore";
+import { fireStore } from "@/firebase/firebaseConfig";
+import { collection, addDoc, onSnapshot, deleteDoc, doc, query, where, setDoc, getDocs } from "firebase/firestore";
 
 const client = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -23,62 +23,146 @@ export function Chat() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [chats, setChats] = useState<{ id: string; name: string }[]>([]);
-  const chatCounterRef = useRef(0); // Centralized counter for chat names
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const chatCounterRef = useRef(0);
+  const currentAccountId = "jed";
 
   useEffect(() => {
-    // Listen for real-time updates from Firebase
-    const unsubscribe = onSnapshot(collection(db, "chats"), (snapshot) => {
+    const unsubscribe = fetchChats(); // Ensure fetchChats returns the unsubscribe function
+    return () => unsubscribe(); // Cleanup the listener on unmount
+  }, [currentAccountId]); // Remove dependency on activeChatId to avoid re-triggering
+
+  // Fetch chats from Firestore
+  const fetchChats = () => {
+    const chatsQuery = query(
+      collection(fireStore, "chats"),
+      where("accountId", "==", currentAccountId)
+    );
+
+    const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
       const chatsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as { id: string; name: string }));
       setChats(chatsData);
-
-      // Update the counter to ensure it reflects the number of chats in the database
       chatCounterRef.current = chatsData.length;
+
+      if (!activeChatId && chatsData.length > 0) {
+        setActiveChatId(chatsData[0].id);
+      }
     });
 
     return () => unsubscribe();
-  }, []);
+  };
 
-  const handleCreateNewChat = async () => {
-    try {
-      const id = Date.now().toString(); // Generate a unique ID
-      const name = `Chat ${chatCounterRef.current + 1}`; // Include the ID in the chat name
+  // Fetch messages for the selected chat
+  const fetchMessages = (chatId: string) => {
+    const messagesQuery = collection(fireStore, `chats/${chatId}/messages`);
 
-      // Add a new chat to Firebase
-      await addDoc(collection(db, "chats"), { id, name });
-    } catch (error) {
-      console.error("Error creating new chat:", error);
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      const messagesData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as message[];
+      setMessages(messagesData);
+    });
+
+    return () => unsubscribe();
+  };
+
+  // Create a new chat
+  const createNewChat = async (): Promise<string> => {
+    const name = `Chat ${chatCounterRef.current + 1}`;
+    const createdAt = new Date().toISOString();
+
+    const newChatRef = await addDoc(collection(fireStore, "chats"), { name, accountId: currentAccountId, createdAt });
+    console.log("Chat created successfully:", { id: newChatRef.id, name, accountId: currentAccountId, createdAt });
+
+    setActiveChatId(newChatRef.id);
+    return newChatRef.id;
+  };
+
+  // Save message to Firestore
+  const saveMessage = async (chatId: string, message: message) => {
+    const messageRef = doc(fireStore, `chats/${chatId}/messages`, message.id);
+    await setDoc(messageRef, message);
+    console.log("Message saved to Firestore with ID:", message.id);
+  };
+
+  // Delete chat from Firestore
+  const deleteChat = async (chatId: string) => {
+    const chatRef = doc(fireStore, "chats", chatId);
+    await deleteDoc(chatRef);
+    console.log("Chat deleted successfully:", chatId);
+
+    // Reset active chat and messages if the deleted chat was active
+    if (activeChatId === chatId) {
+      setActiveChatId(null);
+      setMessages([]);
     }
   };
 
-  const handleDeleteChat = async (chatId: string) => {
-    try {
-      // Delete the chat from Firebase
-      await deleteDoc(doc(db, "chats", chatId));
-    } catch (error) {
-      console.error("Error deleting chat:", error);
+  // Function to check if a chat is inactive and empty, and delete it if necessary
+  const deleteEmptyChat = async (chatId: string) => {
+    // Check if the chat is inactive before deleting
+    if (chatId === activeChatId) {
+      //console.log(`Chat with ID: ${chatId} is active and will not be deleted.`);
+      return false;
+    }
+
+    // Check if the chat is empty
+    const messagesQuery = collection(fireStore, `chats/${chatId}/messages`);
+    const snapshot = await getDocs(messagesQuery);
+
+    if (snapshot.empty) {
+      // Delete the chat if it has no messages
+      await deleteChat(chatId);
+      console.log(`Deleted inactive and empty chat with ID: ${chatId}`);
+      return true; // Indicate that the chat was deleted
+    }
+
+    console.log(`Chat with ID: ${chatId} is not empty and will not be deleted.`);
+    return false; // Indicate that the chat was not deleted
+  };
+
+  // Function to handle selecting a chat
+  const handleSelectChat = async (chatId: string) => {
+    // Delete if chat is inactive and empty before switching to a new chat
+    const wasDeleted = await deleteEmptyChat(activeChatId || "");
+
+    // ...else, fetch messages for the new selected chat
+    if (!wasDeleted) {
+      setActiveChatId(chatId);
+      fetchMessages(chatId);
     }
   };
 
-  const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
-
-  const cleanupMessageHandler = () => {
-    if (messageHandlerRef.current) {
-      messageHandlerRef.current = null;
-    }
-  };
-
-  async function handleSubmit(text?: string) {
+  // Handle message submission
+  const handleSubmit = async (text?: string) => {
     if (isLoading) return;
 
     const messageText = text || question;
     setIsLoading(true);
-    cleanupMessageHandler();
-
     const traceId = uuidv4();
-    setMessages(prev => [...prev, { content: messageText, role: "user", id: traceId }]);
+
+    const newMessage: message = {
+      id: traceId,
+      content: messageText,
+      role: "user",
+      accountId: currentAccountId,
+      createdAt: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
     setQuestion("");
 
+    let chatId = activeChatId;
+
+    if (!chatId) {
+      chatId = await createNewChat();
+    }
+
+
     try {
+      await saveMessage(chatId, newMessage);
+
       const response = await client.chat.completions.create({
         model: 'gpt-4o',
         messages: [
@@ -87,95 +171,115 @@ export function Chat() {
         ],
       });
 
-      const assistantMessage = response.choices[0].message.content;
+      const assistantMessage: message = {
+        id: uuidv4(),
+        content: response.choices[0].message.content ?? "No response provided.",
+        role: "assistant",
+        accountId: currentAccountId,
+        createdAt: new Date().toISOString(),
+      };
 
-      setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        const newContent = lastMessage?.role === "assistant"
-          ? (lastMessage.content ?? "") + assistantMessage
-          : assistantMessage;
-
-        const newMessage = { content: newContent, role: "assistant", id: traceId } as message;
-        return lastMessage?.role === "assistant"
-          ? [...prev.slice(0, -1), newMessage]
-          : [...prev, newMessage];
-      });
+      setMessages((prev) => [...prev, assistantMessage]);
+      await saveMessage(chatId, assistantMessage);
     } catch (error) {
-      console.error("OpenAI API error:", error);
-      setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        const errorMessage = error instanceof Error && error.message ? error.message : "An unknown error occurred.";
-        const newMessage = { content: "Error: " + errorMessage, role: "error", id: traceId } as message;
-        return lastMessage?.role === "assistant"
-          ? [...prev.slice(0, -1), newMessage]
-          : [...prev, newMessage];
-      });
+      console.error("Error handling message submission:", error);
+
+      const errorMessage: message = {
+        id: traceId,
+        content: "Error: " + (error instanceof Error ? error.message : "Unknown error"),
+        role: "error",
+        accountId: currentAccountId,
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+      await saveMessage(chatId, errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
-  async function handleGenerateImage(text?: string) {
+  // Handle image generation
+  const handleGenerateImage = async (text?: string) => {
     if (isLoading) return;
 
     const messageText = text || question;
     setIsLoading(true);
-    cleanupMessageHandler();
-
     const traceId = uuidv4();
-    setMessages(prev => [...prev, { content: messageText, role: "user", id: traceId }]);
+
+    const newMessage: message = {
+      id: traceId,
+      content: messageText,
+      role: "user",
+      accountId: currentAccountId,
+      createdAt: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
     setQuestion("");
+
+    let chatId = activeChatId;
+
+    if (!chatId) {
+      chatId = await createNewChat();
+    }
+
     try {
+      await saveMessage(chatId, newMessage);
+
       const response = await client.images.generate({
+        model: "dall-e-3",
         prompt: messageText,
-        n: 1,
-        size: '512x512',
       });
 
       const imageUrl = response.data[0].url;
+      const assistantMessage: message = {
+        id: uuidv4(),
+        content: imageUrl || "Image generation failed.",
+        role: "assistant",
+        accountId: currentAccountId,
+        createdAt: new Date().toISOString(),
+      };
 
-      setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        const newMessage = { content: imageUrl, role: "assistant", id: traceId } as message;
-        return lastMessage?.role === "assistant"
-          ? [...prev.slice(0, -1), newMessage]
-          : [...prev, newMessage];
-      });
-    }
-    catch (error) {
-      console.error("OpenAI API error:", error);
-      setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        const errorMessage = error instanceof Error && error.message ? error.message : "An unknown error occurred.";
-        const newMessage = { content: "Error: " + errorMessage, role: "error", id: traceId } as message;
-        return lastMessage?.role === "assistant"
-          ? [...prev.slice(0, -1), newMessage]
-          : [...prev, newMessage];
-      });
-    }
-    finally {
+      setMessages((prev) => [...prev, assistantMessage]);
+      await saveMessage(chatId, assistantMessage);
+    } catch (error) {
+      console.error("Error generating image:", error);
+
+      const errorMessage: message = {
+        id: traceId,
+        content: "Error: " + (error instanceof Error ? error.message : "Unknown error"),
+        role: "error",
+        accountId: currentAccountId,
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+      await saveMessage(chatId, errorMessage);
+    } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-row min-w-0 h-dvh bg-background">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
-        onDeleteChat={handleDeleteChat}
+        onDeleteChat={deleteChat}
+        onCreateNewChat={async () => { await createNewChat(); }}
+        chats={chats}
+        onSelectChat={handleSelectChat}
         className={`transition-transform transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           } fixed inset-y-0 left-0 w-64 bg-background border-r z-10 md:w-64`}
-        chats={chats} // Pass chats from Firebase
-        onCreateNewChat={handleCreateNewChat} // Pass centralized handler to Sidebar
       />
       <div className={`flex flex-col flex-1 transition-all ${isSidebarOpen ? "md:ml-64" : "md:ml-0"}`}>
         <Header
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          onCreateNewChat={handleCreateNewChat} // Pass centralized handler to Header
+          onCreateNewChat={async () => { await createNewChat(); }}
         />
         <div className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4" ref={messagesContainerRef}>
-          {messages.length == 0 && <Overview />}
+          {messages.length === 0 && <Overview />}
           {messages.map((message, index) => (
             <PreviewMessage key={index} message={message} />
           ))}
@@ -194,4 +298,4 @@ export function Chat() {
       </div>
     </div>
   );
-};
+}

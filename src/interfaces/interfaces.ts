@@ -1,5 +1,7 @@
-export interface message{
-    content:string;
-    role:string;
-    id:string;
+export interface message {
+    id: string;
+    content: string;
+    role: string;
+    createdAt: string;
+    accountId: string; // Add this property
 }

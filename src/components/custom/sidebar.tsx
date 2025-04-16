@@ -12,9 +12,10 @@ interface SidebarProps {
   className?: string;
   chats: { id: string; name: string }[]; // Accept chats as a prop
   onCreateNewChat: (newChat: { id: string; name: string }) => void; // Accept onCreateNewChat as a prop
+  onSelectChat: (chatId: string) => void; // Accept onSelectChat as a prop
 }
 
-export function Sidebar({ isOpen, onClose, onDeleteChat, className, chats, onCreateNewChat }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, onDeleteChat, className, chats, onCreateNewChat, onSelectChat }: SidebarProps) {
   const [activeChat, setActiveChat] = useState<string | null>(null);
 
   const handleCreateNewChat = () => {
@@ -27,6 +28,7 @@ export function Sidebar({ isOpen, onClose, onDeleteChat, className, chats, onCre
 
   const selectChat = (chatId: string) => {
     setActiveChat(chatId);
+    onSelectChat(chatId); // Call onSelectChat with the selected chat ID
   };
 
   return (
