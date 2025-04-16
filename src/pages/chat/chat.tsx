@@ -1,13 +1,14 @@
+import { Header } from "@/components/custom/header";
+import { Overview } from "@/components/custom/overview";
+import { Sidebar } from "@/components/custom/sidebar";
 import { ChatInput } from "@/components/custom/chatinput";
 import { PreviewMessage, ThinkingMessage } from "../../components/custom/message";
 import { useScrollToBottom } from '@/components/custom/use-scroll-to-bottom';
-import { useState, useRef, useEffect } from "react";
+import { Footer } from "@/components/custom/footer";
 import { message } from "../../interfaces/interfaces";
-import { Overview } from "@/components/custom/overview";
-import { Header } from "@/components/custom/header";
+import { useState, useRef, useEffect } from "react";
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
-import { Sidebar } from "@/components/custom/sidebar";
 import { fireStore } from "@/firebase/firebaseConfig";
 import { collection, addDoc, onSnapshot, deleteDoc, doc, query, setDoc, getDocs, orderBy } from "firebase/firestore";
 
@@ -305,6 +306,7 @@ export function Chat() {
             showSuggestions={messages.length === 0}
           />
         </div>
+        <Footer /> {/* Use the Footer component here */}
       </div>
     </div>
   );
