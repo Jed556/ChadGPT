@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
 import { Sidebar } from "@/components/custom/sidebar";
 import { fireStore } from "@/firebase/firebaseConfig";
-import { collection, addDoc, onSnapshot, deleteDoc, doc, query, where, setDoc, getDocs, orderBy } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, deleteDoc, doc, query, setDoc, getDocs, orderBy } from "firebase/firestore";
 
 const client = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
