@@ -4,7 +4,6 @@ import { Button } from "../ui/button";
 import { ArrowUpIcon, PenIcon, PaperclipIcon } from "./icons"; // Import the pencil icon
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
 
 interface ChatInputProps {
     question: string;
@@ -12,6 +11,7 @@ interface ChatInputProps {
     onSubmit: (text?: string) => void;
     onGenerateImage: (text?: string) => void;
     isLoading: boolean;
+    showSuggestions: boolean; // New prop to control suggestions visibility
 }
 
 const suggestedActions = [
@@ -37,9 +37,7 @@ const suggestedActions = [
     }
 ];
 
-export const ChatInput = ({ question, setQuestion, onSubmit, onGenerateImage, isLoading }: ChatInputProps) => {
-    const [showSuggestions, setShowSuggestions] = useState(true);
-
+export const ChatInput = ({ question, setQuestion, onSubmit, onGenerateImage, isLoading, showSuggestions }: ChatInputProps) => {
     return (
         <div className="relative w-full flex flex-col gap-4">
             {showSuggestions && (
@@ -58,7 +56,7 @@ export const ChatInput = ({ question, setQuestion, onSubmit, onGenerateImage, is
                                 onClick={() => {
                                     const text = suggestedAction.action;
                                     onSubmit(text);
-                                    setShowSuggestions(false);
+                                    showSuggestions = false;
                                 }}
                                 className="text-left border rounded-xl px-4 py-3.5 text-sm flex-1 gap-1 sm:flex-col w-full h-auto justify-start items-start"
                             >
@@ -92,7 +90,7 @@ export const ChatInput = ({ question, setQuestion, onSubmit, onGenerateImage, is
                         if (isLoading) {
                             toast.error('Please wait for the model to finish its response!');
                         } else {
-                            setShowSuggestions(false);
+                            showSuggestions = false;
                             onSubmit();
                         }
                     }
