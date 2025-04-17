@@ -26,12 +26,14 @@ export function Chat() {
   const [chats, setChats] = useState<{ id: string; name: string }[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const chatCounterRef = useRef(0);
-  const currentAccountId = "jed";
+  const currentAccountId = "jed556";
 
   useEffect(() => {
     const unsubscribe = fetchChats(); // Ensure fetchChats returns the unsubscribe function
+    setMessages([]);
+    setActiveChatId(null);
     return () => unsubscribe(); // Cleanup the listener on unmount
-  }, [currentAccountId]); // Remove dependency on activeChatId to avoid re-triggering
+  }, [currentAccountId]); // Trigger when currentAccountId changes
 
   useEffect(() => {
     if (activeChatId) {
@@ -45,7 +47,7 @@ export function Chat() {
     const chatsQuery = query(
       collection(fireStore, "chats"),
       where("accountId", "==", currentAccountId),
-      orderBy("createdAt", "desc") // Sort chats by createdAt in descending order
+      orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
@@ -58,6 +60,8 @@ export function Chat() {
       }
     });
 
+    setActiveChatId(null); // Reset active chat ID when fetching chats
+
     return () => unsubscribe();
   };
 
@@ -65,7 +69,7 @@ export function Chat() {
   const fetchMessages = (chatId: string) => {
     const messagesQuery = query(
       collection(fireStore, `chats/${chatId}/messages`),
-      orderBy("createdAt", "asc") // Order messages by createdAt in ascending order
+      orderBy("createdAt", "asc")
     );
 
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
@@ -242,6 +246,10 @@ export function Chat() {
       const response = await client.images.generate({
         model: "dall-e-3",
         prompt: messageText,
+        n: 1,
+        quality: "hd",
+        size: "1024x1024",
+        response_format: "url",
       });
 
       const imageUrl = response.data[0].url;
