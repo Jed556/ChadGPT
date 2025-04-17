@@ -10,7 +10,7 @@ import { useState, useRef, useEffect } from "react";
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
 import { fireStore } from "@/firebase/firebaseConfig";
-import { collection, addDoc, onSnapshot, deleteDoc, doc, query, setDoc, getDocs, orderBy } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, deleteDoc, doc, query, setDoc, getDocs, orderBy, where } from "firebase/firestore";
 
 const client = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -44,7 +44,7 @@ export function Chat() {
   const fetchChats = () => {
     const chatsQuery = query(
       collection(fireStore, "chats"),
-      //where("accountId", "==", currentAccountId),
+      where("accountId", "==", currentAccountId),
       orderBy("createdAt", "desc") // Sort chats by createdAt in descending order
     );
 
@@ -63,7 +63,10 @@ export function Chat() {
 
   // Fetch messages for the selected chat
   const fetchMessages = (chatId: string) => {
-    const messagesQuery = collection(fireStore, `chats/${chatId}/messages`);
+    const messagesQuery = query(
+      collection(fireStore, `chats/${chatId}/messages`),
+      orderBy("createdAt", "asc") // Order messages by createdAt in ascending order
+    );
 
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
       const messagesData = snapshot.docs.map((doc) => ({
@@ -306,7 +309,7 @@ export function Chat() {
             showSuggestions={messages.length === 0}
           />
         </div>
-        <Footer /> {/* Use the Footer component here */}
+        <Footer />
       </div>
     </div>
   );
