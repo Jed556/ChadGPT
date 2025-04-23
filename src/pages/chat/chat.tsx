@@ -101,7 +101,7 @@ export function Chat() {
   };
 
   // Save message to Firestore with retry logic
-  const saveMessage = async (chatId: string, message: message, maxRetries = 5, delay = 3000) => {
+  const saveMessage = async (chatId: string, message: message, maxRetries = 5, delay = 10000) => {
     let attempts = 0;
     while (attempts < maxRetries) {
       try {
