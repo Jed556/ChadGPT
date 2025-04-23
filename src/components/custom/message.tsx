@@ -40,6 +40,19 @@ export const PreviewMessage = ({ message }: { message: message; }) => {
             </div>
           )}
 
+          {message.image && (
+            <div className="image-container">
+              {message.image.type === "url" ? (
+                <img src={message.image.data} alt="Generated content" />
+              ) : (
+                <img
+                  src={`data:image/png;base64,${message.image.data}`}
+                  alt="Generated content"
+                />
+              )}
+            </div>
+          )}
+
           {message.role === 'assistant' && (
             <MessageActions message={message} />
           )}

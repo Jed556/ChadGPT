@@ -9,9 +9,9 @@ import { message } from "../../interfaces/interfaces";
 import { useState, useRef, useEffect } from "react";
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import { fireStore } from "@/firebase/firebaseConfig";
 import { collection, addDoc, onSnapshot, deleteDoc, doc, query, setDoc, getDocs, orderBy, where } from "firebase/firestore";
-import { GoogleGenAI } from "@google/genai"; // Import Gemini API
 
 const client = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -100,11 +100,24 @@ export function Chat() {
     return newChatRef.id;
   };
 
-  // Save message to Firestore
-  const saveMessage = async (chatId: string, message: message) => {
-    const messageRef = doc(fireStore, `chats/${chatId}/messages`, message.id);
-    await setDoc(messageRef, message);
-    console.log("Message saved to Firestore with ID:", message.id);
+  // Save message to Firestore with retry logic
+  const saveMessage = async (chatId: string, message: message, maxRetries = 5, delay = 3000) => {
+    let attempts = 0;
+    while (attempts < maxRetries) {
+      try {
+        const messageRef = doc(fireStore, `chats/${chatId}/messages`, message.id);
+        await setDoc(messageRef, message);
+        console.log("Message saved to Firestore with ID:", message.id, "after", attempts + 1, "attempt(s).");
+        return; // Exit the loop if successful
+      } catch (error) {
+        attempts++;
+        console.error(`Attempt ${attempts} to save message failed:`, error);
+        if (attempts >= maxRetries) {
+          throw new Error("Failed to save message after maximum retries.");
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay)); // Wait before retrying
+      }
+    }
   };
 
   // Delete chat from Firestore
@@ -250,7 +263,6 @@ export function Chat() {
       createdAt: new Date().toISOString(),
     };
 
-    //setMessages((prev) => [...prev, newMessage]);
     setQuestion("");
 
     let chatId = activeChatId;
@@ -261,7 +273,6 @@ export function Chat() {
     await saveMessage(chatId, newMessage);
 
     try {
-
       const response = await client.images.generate({
         model: "dall-e-3",
         prompt: messageText,
@@ -274,27 +285,72 @@ export function Chat() {
       const imageUrl = response.data[0].url;
       const assistantMessage: message = {
         id: uuidv4(),
-        content: imageUrl || "Image generation failed.",
+        content: "Here is the generated image:",
         role: "assistant",
         accountId: currentAccountId,
         createdAt: new Date().toISOString(),
+        image: { type: "url", data: imageUrl || "" },
       };
 
-      //setMessages((prev) => [...prev, assistantMessage]);
       await saveMessage(chatId, assistantMessage);
     } catch (error) {
-      console.error("Error generating image:", error);
+      console.error("OpenAI image generation failed, trying Gemini API:", error);
 
-      const errorMessage: message = {
-        id: uuidv4(),
-        content: "Error: " + (error instanceof Error ? error.message : "Unknown error"),
-        role: "error",
-        accountId: currentAccountId,
-        createdAt: new Date().toISOString(),
-      };
+      let imageData = "";
 
-      //setMessages((prev) => [...prev, errorMessage]);
-      await saveMessage(chatId, errorMessage);
+      try {
+        const geminiResponse = await ai.models.generateContent({
+          model: "gemini-2.0-flash-exp-image-generation",
+          contents: messageText,
+          config: {
+            responseModalities: [Modality.TEXT, Modality.IMAGE],
+          },
+        });
+
+        if (geminiResponse?.candidates?.[0]?.content?.parts) {
+          const parts = geminiResponse.candidates[0].content.parts;
+          let description = "";
+
+          for (const part of parts) {
+            if (part.text) {
+              description = part.text;
+            } else if (part.inlineData?.data) {
+              imageData = part.inlineData.data;
+            }
+          }
+
+          if (imageData) {
+            const assistantMessage: message = {
+              id: uuidv4(),
+              content: description || "Here is the generated image:",
+              role: "assistant",
+              accountId: currentAccountId,
+              createdAt: new Date().toISOString(),
+              image: { type: "base64", data: imageData }, // Save base64 image
+            };
+
+            await saveMessage(chatId, assistantMessage);
+          } else {
+            throw new Error("Gemini API returned no image data.");
+          }
+        } else {
+          throw new Error("Gemini response is missing candidates or parts.");
+        }
+      } catch (geminiError) {
+        if (imageData) return;
+
+        console.error("Gemini API also failed:", geminiError);
+
+        const errorMessage: message = {
+          id: uuidv4(),
+          content: "Error: Both OpenAI and Gemini APIs failed.",
+          role: "error",
+          accountId: currentAccountId,
+          createdAt: new Date().toISOString(),
+        };
+
+        await saveMessage(chatId, errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

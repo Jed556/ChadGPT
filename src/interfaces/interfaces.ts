@@ -1,7 +1,8 @@
 export interface message {
     id: string;
     content: string;
-    role: string;
+    image?: { type: "base64" | "url"; data: string };
+    role: "user" | "assistant" | "error";
+    accountId: string;
     createdAt: string;
-    accountId: string; // Add this property
 }
