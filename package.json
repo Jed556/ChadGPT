@@ -12,6 +12,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@google/genai": "^0.9.0",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-popover": "^1.1.2",

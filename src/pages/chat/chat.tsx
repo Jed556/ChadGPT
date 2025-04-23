@@ -11,11 +11,14 @@ import { v4 as uuidv4 } from 'uuid';
 import OpenAI from "openai";
 import { fireStore } from "@/firebase/firebaseConfig";
 import { collection, addDoc, onSnapshot, deleteDoc, doc, query, setDoc, getDocs, orderBy, where } from "firebase/firestore";
+import { GoogleGenAI } from "@google/genai"; // Import Gemini API
 
 const client = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
 });
+
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 export function Chat() {
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
@@ -168,7 +171,6 @@ export function Chat() {
       createdAt: new Date().toISOString(),
     };
 
-    //setMessages((prev) => [...prev, newMessage]);
     setQuestion("");
 
     let chatId = activeChatId;
@@ -195,21 +197,38 @@ export function Chat() {
         createdAt: new Date().toISOString(),
       };
 
-      //setMessages((prev) => [...prev, assistantMessage]);
       await saveMessage(chatId, assistantMessage);
     } catch (error) {
-      console.error("Error handling message submission:", error);
+      console.error("OpenAI API failed, trying Gemini API:", error);
 
-      const errorMessage: message = {
-        id: uuidv4(),
-        content: "Error: " + (error instanceof Error ? error.message : "Unknown error"),
-        role: "error",
-        accountId: currentAccountId,
-        createdAt: new Date().toISOString(),
-      };
+      try {
+        const geminiResponse = await ai.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: messageText,
+        });
 
-      //setMessages((prev) => [...prev, errorMessage]);
-      await saveMessage(chatId, errorMessage);
+        const assistantMessage: message = {
+          id: uuidv4(),
+          content: geminiResponse.text || "No response provided by Gemini.",
+          role: "assistant",
+          accountId: currentAccountId,
+          createdAt: new Date().toISOString(),
+        };
+
+        await saveMessage(chatId, assistantMessage);
+      } catch (geminiError) {
+        console.error("Gemini API also failed:", geminiError);
+
+        const errorMessage: message = {
+          id: uuidv4(),
+          content: "Error: Both OpenAI and Gemini APIs failed.",
+          role: "error",
+          accountId: currentAccountId,
+          createdAt: new Date().toISOString(),
+        };
+
+        await saveMessage(chatId, errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
